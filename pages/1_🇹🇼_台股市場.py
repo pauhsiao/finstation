@@ -41,13 +41,13 @@ def cached_sector(stock_ids: tuple) -> list[dict]:
                 "_id": sid,
                 "代號": sid,
                 "收盤價": f"{latest['Close']:.2f}",
-                "漲跌": round(change, 2),
+                "漲跌": f"{change:+.2f}",
                 "漲跌幅": f"{change_pct:+.2f}%",
                 "成交量(張)": int(latest.get("Volume", 0)) if "Volume" in latest.index else 0,
             })
         else:
-            rows.append({"_id": sid, "代號": sid, "收盤價": None,
-                         "漲跌": None, "漲跌幅": "—", "成交量(張)": 0})
+            rows.append({"_id": sid, "代號": sid, "收盤價": "—",
+                         "漲跌": "—", "漲跌幅": "—", "成交量(張)": 0})
     return rows
 
 
