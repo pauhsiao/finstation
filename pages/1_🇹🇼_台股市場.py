@@ -149,9 +149,11 @@ with tab_sector:
     with st.spinner(f"載入「{selected}」族群數據..."):
         rows = cached_sector(stock_ids)
 
-    # 加上名稱欄
+    # 加上名稱欄（龍頭加 👑）
+    leader_ids = {s["id"] for s in stocks_in_sector if s.get("leader")}
     for row in rows:
-        row["名稱"] = name_map.get(row["_id"], row["代號"])
+        name = name_map.get(row["_id"], row["代號"])
+        row["名稱"] = f"👑 {name}" if row["_id"] in leader_ids else name
 
     df_sector = pd.DataFrame(rows)[["代號", "名稱", "收盤價", "漲跌", "漲跌幅", "成交量(張)"]]
 
