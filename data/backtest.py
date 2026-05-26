@@ -90,8 +90,8 @@ def bb_signals(df: pd.DataFrame, period: int = 20, std: float = 2.0) -> pd.Serie
     from data.indicators import add_bollinger_bands
     df2 = add_bollinger_bands(df.copy(), period, std)
     signals = pd.Series(0, index=df2.index)
-    signals[(df2["Close"] < df2["BB_lower"]) & (df2["Close"].shift(1) >= df2["BB_lower"])] = 1
-    signals[(df2["Close"] > df2["BB_upper"]) & (df2["Close"].shift(1) <= df2["BB_upper"])] = -1
+    signals[(df2["Close"] < df2["BB_Lower"]) & (df2["Close"].shift(1) >= df2["BB_Lower"])] = 1
+    signals[(df2["Close"] > df2["BB_Upper"]) & (df2["Close"].shift(1) <= df2["BB_Upper"])] = -1
     return signals
 
 
