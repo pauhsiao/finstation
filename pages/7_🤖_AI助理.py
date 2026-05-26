@@ -1,5 +1,6 @@
 import streamlit as st
 import anthropic
+import re
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote
@@ -82,6 +83,27 @@ with tab2:
         st.markdown(answer)
 
 # ── Tab 3: 市場問答 ──────────────────────────────────────────────────────
+def fetch_stocks_in_text(text: str) -> str:
+    codes = re.findall(r'\b(\d{4})\b', text)
+    if not codes:
+        return ""
+    parts = []
+    for code in set(codes[:3]):  # 最多3支避免太慢
+        info = get_taiwan_stock_info(code)
+        if not info:
+            continue
+        rt = get_realtime_quote(code)
+        df = get_taiwan_stock_price(code, days=10)
+        name = info.get("stock_name", code)
+        line = f"【{code} {name}】"
+        if rt:
+            line += f" 現價:{rt['price']:.2f} 漲跌:{rt['change']:+.2f}({rt['change_pct']:+.2f}%)"
+        if not df.empty:
+            recent = ", ".join(f"{r['Close']:.2f}" for _, r in df.tail(5).iterrows())
+            line += f" 近5日收盤:{recent}"
+        parts.append(line)
+    return "\n".join(parts)
+
 with tab3:
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
@@ -91,19 +113,25 @@ with tab3:
             st.markdown(msg["content"])
 
     if prompt := st.chat_input("問我任何台股問題..."):
-        st.session_state["chat_history"].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
+        stock_ctx = fetch_stocks_in_text(prompt)
+        user_content = prompt
+        if stock_ctx:
+            user_content = f"{prompt}\n\n【即時市場資料】\n{stock_ctx}"
+
+        st.session_state["chat_history"].append({"role": "user", "content": prompt})
         history = [{"role": m["role"], "content": m["content"]}
-                   for m in st.session_state["chat_history"]]
+                   for m in st.session_state["chat_history"][:-1]]
+        history.append({"role": "user", "content": user_content})
 
         with st.chat_message("assistant"):
             with st.spinner("思考中..."):
                 msg = client.messages.create(
                     model="claude-haiku-4-5-20251001",
                     max_tokens=1024,
-                    system="你是一位專業的台股投資顧問，用繁體中文回答，語氣簡潔務實。",
+                    system="你是一位專業的台股投資顧問，用繁體中文回答，語氣簡潔務實。回答時以提供的即時市場資料為準，不要憑空猜測股票名稱或數字。",
                     messages=history,
                 )
                 reply = msg.content[0].text
