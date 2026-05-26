@@ -3,12 +3,18 @@ import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote
+from data.db import wl_load, wl_add, wl_remove
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="自選股 | FinStation", page_icon="⭐", layout="wide")
 st.title("⭐ 自選股")
 
+# 從 Supabase 載入，fallback 到 session_state 預設
 if "watchlist_tw" not in st.session_state:
-    st.session_state["watchlist_tw"] = ["2330", "2454", "2317", "2308", "2891"]
+    loaded = wl_load()
+    st.session_state["watchlist_tw"] = loaded if loaded else ["2330", "2454", "2317", "2308", "2891"]
 
 wl: list = st.session_state["watchlist_tw"]
 
@@ -20,6 +26,7 @@ with st.form("add_form", clear_on_submit=True):
         sid = new_id.strip()
         if sid not in wl:
             wl.append(sid)
+            wl_add(sid)
             st.success(f"已加入 {sid}")
         else:
             st.info(f"{sid} 已在自選股中")
@@ -38,7 +45,6 @@ def fetch_watchlist(stock_ids: tuple) -> list[dict]:
         info = get_taiwan_stock_info(sid)
         rt = get_realtime_quote(sid)
         if rt:
-            price_label = f"{rt['price']:.2f}" + (" 🔴" if rt["is_realtime"] else "")
             rows.append({
                 "代號": sid,
                 "名稱": info.get("stock_name", sid),
@@ -101,7 +107,8 @@ cols = st.columns(min(len(wl), 8))
 for i, sid in enumerate(list(wl)):
     if cols[i % len(cols)].button(f"✕ {sid}", key=f"rm_{sid}"):
         wl.remove(sid)
+        wl_remove(sid)
         st.cache_data.clear()
         st.rerun()
 
-st.caption("⚠️ 自選股儲存於本次瀏覽 Session，重新整理後會重置為預設清單。Phase 3 將加入雲端持久化儲存。")
+st.caption("✅ 自選股已同步至雲端（Supabase），重新整理後仍會保留。")
