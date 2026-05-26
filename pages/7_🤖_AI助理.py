@@ -3,7 +3,8 @@ import anthropic
 import re
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote, get_taiwan_market_summary
+from data.news import get_financial_news
 from data.db import wl_load, holdings_load
 from dotenv import load_dotenv
 
@@ -83,6 +84,33 @@ with tab2:
         st.markdown(answer)
 
 # ── Tab 3: 市場問答 ──────────────────────────────────────────────────────
+@st.cache_data(ttl=300)
+def get_taiex_context() -> str:
+    df = get_taiwan_market_summary()
+    if df.empty:
+        return ""
+    recent = df.tail(5)
+    lines = ["【加權指數近5日】"]
+    for _, r in recent.iterrows():
+        lines.append(f"  {str(r['date'])[:10]}：{r['Close']:.0f} 點")
+    latest = df.iloc[-1]
+    prev = df.iloc[-2] if len(df) > 1 else latest
+    chg = latest["Close"] - prev["Close"]
+    lines.append(f"  最新漲跌：{chg:+.0f} 點（{chg/prev['Close']*100:+.2f}%）")
+    return "\n".join(lines)
+
+
+@st.cache_data(ttl=600)
+def get_news_context(query: str) -> str:
+    articles = get_financial_news(query=query, days=2, page_size=5)
+    if not articles:
+        return ""
+    lines = ["【相關新聞（近2日）】"]
+    for a in articles:
+        lines.append(f"  [{a['published']}] {a['title']} ({a['source']})")
+    return "\n".join(lines)
+
+
 def fetch_stocks_in_text(text: str) -> str:
     codes = re.findall(r'\b(\d{4})\b', text)
     if not codes:
@@ -117,9 +145,20 @@ with tab3:
             st.markdown(prompt)
 
         stock_ctx = fetch_stocks_in_text(prompt)
-        user_content = prompt
+        taiex_ctx = get_taiex_context()
+        news_ctx = get_news_context(f"Taiwan stock {prompt[:50]}")
+
+        ctx_parts = []
+        if taiex_ctx:
+            ctx_parts.append(taiex_ctx)
         if stock_ctx:
-            user_content = f"{prompt}\n\n【即時市場資料】\n{stock_ctx}"
+            ctx_parts.append(f"【個股即時資料】\n{stock_ctx}")
+        if news_ctx:
+            ctx_parts.append(news_ctx)
+
+        user_content = prompt
+        if ctx_parts:
+            user_content = f"{prompt}\n\n" + "\n\n".join(ctx_parts)
 
         st.session_state["chat_history"].append({"role": "user", "content": prompt})
         history = [{"role": m["role"], "content": m["content"]}
