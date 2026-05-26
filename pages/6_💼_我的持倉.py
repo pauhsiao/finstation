@@ -17,7 +17,7 @@ with st.expander("➕ 新增持倉", expanded=False):
     with st.form("add_holding"):
         c1, c2, c3, c4 = st.columns(4)
         sid = c1.text_input("股票代號", placeholder="例如：2330")
-        shares = c2.number_input("持股數量（張）", min_value=1, value=1)
+        shares = c2.number_input("持股數量（股）", min_value=1, value=1000)
         buy_price = c3.number_input("買入均價", min_value=0.01, value=100.0, step=0.1)
         buy_date = c4.date_input("買入日期")
         submitted = st.form_submit_button("新增", use_container_width=True)
@@ -48,11 +48,11 @@ for h in holdings:
     sid = h["stock_id"]
     shares = h["shares"]
     buy_price = h["buy_price"]
-    cost = shares * buy_price * 1000  # 1張 = 1000股
+    cost = shares * buy_price
 
     rt = get_realtime_quote(sid)
     cur_price = rt["price"] if rt else buy_price
-    cur_value = shares * cur_price * 1000
+    cur_value = shares * cur_price
     pnl = cur_value - cost
     pnl_pct = pnl / cost * 100
 
@@ -60,7 +60,7 @@ for h in holdings:
         "_id": h["id"],
         "代號": sid,
         "名稱": h.get("stock_name", sid),
-        "持股(張)": shares,
+        "持股(股)": shares,
         "買入均價": f"{buy_price:.2f}",
         "現價": f"{cur_price:.2f}",
         "成本": cost,
@@ -95,7 +95,7 @@ def color_pnl(val):
         if val < 0: return "color: #00cc44"
     return ""
 
-display_df = df[["代號", "名稱", "持股(張)", "買入均價", "現價", "損益", "損益%", "買入日期"]].copy()
+display_df = df[["代號", "名稱", "持股(股)", "買入均價", "現價", "損益", "損益%", "買入日期"]].copy()
 display_df["損益"] = display_df["損益"].apply(lambda x: f"{x:+,.0f}")
 display_df["損益%"] = display_df["損益%"].apply(lambda x: f"{x:+.2f}%")
 styled = display_df.style.map(lambda v: "color: #ff4b4b" if isinstance(v, str) and v.startswith("+") else ("color: #00cc44" if isinstance(v, str) and v.startswith("-") else ""), subset=["損益", "損益%"])
