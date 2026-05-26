@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote
 
 st.set_page_config(page_title="自選股 | FinStation", page_icon="⭐", layout="wide")
 st.title("⭐ 自選股")
@@ -31,31 +31,44 @@ if not wl:
     st.stop()
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=30)
 def fetch_watchlist(stock_ids: tuple) -> list[dict]:
     rows = []
     for sid in stock_ids:
-        df = get_taiwan_stock_price(sid, days=5)
         info = get_taiwan_stock_info(sid)
-        if not df.empty:
-            latest = df.iloc[-1]
-            prev = df.iloc[-2] if len(df) > 1 else latest
-            change = latest["Close"] - prev["Close"]
-            change_pct = change / prev["Close"] * 100
+        rt = get_realtime_quote(sid)
+        if rt:
+            price_label = f"{rt['price']:.2f}" + (" 🔴" if rt["is_realtime"] else "")
             rows.append({
                 "代號": sid,
                 "名稱": info.get("stock_name", sid),
-                "收盤價": f"{latest['Close']:.2f}",
-                "漲跌": f"{change:+.2f}",
-                "漲跌幅": f"{change_pct:+.2f}%",
-                "成交量(張)": f"{int(latest.get('Volume', 0)):,}" if "Volume" in latest else "—",
-                "日期": str(latest["date"])[:10] if "date" in latest.index else "—",
+                "現價": f"{rt['price']:.2f}",
+                "漲跌": f"{rt['change']:+.2f}",
+                "漲跌幅": f"{rt['change_pct']:+.2f}%",
+                "成交量(張)": f"{rt['volume']:,}",
+                "即時": "✅" if rt["is_realtime"] else "—",
             })
         else:
-            rows.append({
-                "代號": sid, "名稱": "—", "收盤價": "—",
-                "漲跌": "—", "漲跌幅": "—", "成交量(張)": "—", "日期": "—",
-            })
+            df = get_taiwan_stock_price(sid, days=5)
+            if not df.empty:
+                latest = df.iloc[-1]
+                prev = df.iloc[-2] if len(df) > 1 else latest
+                change = latest["Close"] - prev["Close"]
+                change_pct = change / prev["Close"] * 100
+                rows.append({
+                    "代號": sid,
+                    "名稱": info.get("stock_name", sid),
+                    "現價": f"{latest['Close']:.2f}",
+                    "漲跌": f"{change:+.2f}",
+                    "漲跌幅": f"{change_pct:+.2f}%",
+                    "成交量(張)": f"{int(latest.get('Volume', 0)):,}" if "Volume" in latest else "—",
+                    "即時": "—",
+                })
+            else:
+                rows.append({
+                    "代號": sid, "名稱": "—", "現價": "—",
+                    "漲跌": "—", "漲跌幅": "—", "成交量(張)": "—", "即時": "—",
+                })
     return rows
 
 
@@ -76,6 +89,7 @@ def color_pct(val: str):
     return ""
 
 
+df_display = df_display[["代號", "名稱", "現價", "漲跌", "漲跌幅", "成交量(張)", "即時"]]
 styled = df_display.style.map(color_pct, subset=["漲跌", "漲跌幅"])
 st.dataframe(styled, use_container_width=True, hide_index=True)
 

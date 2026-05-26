@@ -5,6 +5,64 @@ import os
 
 FINMIND_TOKEN = os.getenv("FINMIND_TOKEN", "")
 FINMIND_BASE = "https://api.finmindtrade.com/api/v4/data"
+TWSE_REALTIME = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
+
+
+def get_realtime_quote(stock_id: str) -> dict | None:
+    """
+    從 TWSE/TPEX 即時 API 取得盤中報價。
+    盤後或無資料時回傳 None，呼叫端應 fallback 到 EOD 資料。
+    回傳 dict: price, change, change_pct, high, low, volume, open, prev_close
+    """
+    headers = {"Referer": "https://mis.twse.com.tw/"}
+    for exchange in ("tse", "otc"):
+        try:
+            ex_ch = f"{exchange}_{stock_id}.tw"
+            r = requests.get(
+                TWSE_REALTIME,
+                params={"ex_ch": ex_ch, "json": "1", "delay": "0"},
+                headers=headers,
+                timeout=5,
+            )
+            data = r.json().get("msgArray", [])
+            if not data:
+                continue
+            d = data[0]
+            price_str = d.get("z", "-")
+            if price_str in ("-", ""):
+                # 盤後或停牌：用昨收當作當前價（仍有意義的 fallback）
+                price_str = d.get("y", "-")
+                if price_str in ("-", ""):
+                    continue
+                price = float(price_str)
+                prev_close = price
+                change = 0.0
+                change_pct = 0.0
+            else:
+                price = float(price_str)
+                prev_close = float(d.get("y", price))
+                change = price - prev_close
+                change_pct = change / prev_close * 100 if prev_close else 0.0
+
+            def _f(key):
+                v = d.get(key, "-")
+                return float(v) if v not in ("-", "") else None
+
+            return {
+                "price": price,
+                "change": change,
+                "change_pct": change_pct,
+                "prev_close": prev_close,
+                "open": _f("o"),
+                "high": _f("h"),
+                "low": _f("l"),
+                "volume": int(float(d.get("v", 0) or 0)),
+                "name": d.get("n", ""),
+                "is_realtime": d.get("z", "-") not in ("-", ""),
+            }
+        except Exception:
+            continue
+    return None
 
 
 def get_taiwan_stock_price(stock_id: str, days: int = 180) -> pd.DataFrame:

@@ -4,7 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote
 from data.tw_sectors import TW_SECTORS
 from utils.charts import build_stock_chart
 
@@ -27,27 +27,40 @@ def cached_stock(stock_id: str, days: int):
     return get_taiwan_stock_price(stock_id, days=days), get_taiwan_stock_info(stock_id)
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=30)
 def cached_sector(stock_ids: tuple) -> list[dict]:
     rows = []
     for sid in stock_ids:
-        df = get_taiwan_stock_price(sid, days=5)
-        if not df.empty:
-            latest = df.iloc[-1]
-            prev = df.iloc[-2] if len(df) > 1 else latest
-            change = latest["Close"] - prev["Close"]
-            change_pct = change / prev["Close"] * 100
+        rt = get_realtime_quote(sid)
+        if rt:
             rows.append({
                 "_id": sid,
                 "代號": sid,
-                "收盤價": f"{latest['Close']:.2f}",
-                "漲跌": f"{change:+.2f}",
-                "漲跌幅": f"{change_pct:+.2f}%",
-                "成交量(張)": int(latest.get("Volume", 0)) if "Volume" in latest.index else 0,
+                "現價": f"{rt['price']:.2f}",
+                "漲跌": f"{rt['change']:+.2f}",
+                "漲跌幅": f"{rt['change_pct']:+.2f}%",
+                "成交量(張)": rt["volume"],
+                "即時": "✅" if rt["is_realtime"] else "—",
             })
         else:
-            rows.append({"_id": sid, "代號": sid, "收盤價": "—",
-                         "漲跌": "—", "漲跌幅": "—", "成交量(張)": 0})
+            df = get_taiwan_stock_price(sid, days=5)
+            if not df.empty:
+                latest = df.iloc[-1]
+                prev = df.iloc[-2] if len(df) > 1 else latest
+                change = latest["Close"] - prev["Close"]
+                change_pct = change / prev["Close"] * 100
+                rows.append({
+                    "_id": sid,
+                    "代號": sid,
+                    "現價": f"{latest['Close']:.2f}",
+                    "漲跌": f"{change:+.2f}",
+                    "漲跌幅": f"{change_pct:+.2f}%",
+                    "成交量(張)": int(latest.get("Volume", 0)) if "Volume" in latest.index else 0,
+                    "即時": "—",
+                })
+            else:
+                rows.append({"_id": sid, "代號": sid, "現價": "—",
+                             "漲跌": "—", "漲跌幅": "—", "成交量(張)": 0, "即時": "—"})
     return rows
 
 
@@ -102,18 +115,31 @@ with tab_stock:
             df, info = cached_stock(stock_id.strip(), days)
 
         if not df.empty:
-            latest = df.iloc[-1]
-            prev = df.iloc[-2] if len(df) > 1 else latest
-            change = latest["Close"] - prev["Close"]
-            change_pct = change / prev["Close"] * 100
-            color_arrow = "🔺" if change >= 0 else "🔻"
+            rt = get_realtime_quote(stock_id.strip())
+            if rt:
+                price = rt["price"]
+                change = rt["change"]
+                change_pct = rt["change_pct"]
+                high = rt["high"] or df.iloc[-1].get("High", 0)
+                low = rt["low"] or df.iloc[-1].get("Low", 0)
+                price_label = "即時價格" if rt["is_realtime"] else "收盤價"
+            else:
+                latest = df.iloc[-1]
+                prev = df.iloc[-2] if len(df) > 1 else latest
+                price = latest["Close"]
+                change = price - prev["Close"]
+                change_pct = change / prev["Close"] * 100
+                high = latest.get("High", 0)
+                low = latest.get("Low", 0)
+                price_label = "收盤價"
 
+            color_arrow = "🔺" if change >= 0 else "🔻"
             mc1, mc2, mc3, mc4, mc5 = st.columns([2, 2, 1, 1, 1])
             mc1.metric("股票名稱", info.get("stock_name", stock_id))
-            mc2.metric("收盤價", f"{latest['Close']:.2f}",
+            mc2.metric(price_label, f"{price:.2f}",
                        f"{color_arrow} {change:+.2f} ({change_pct:+.2f}%)")
-            mc3.metric("最高", f"{latest.get('High', 0):.2f}")
-            mc4.metric("最低", f"{latest.get('Low', 0):.2f}")
+            mc3.metric("最高", f"{high:.2f}" if high else "—")
+            mc4.metric("最低", f"{low:.2f}" if low else "—")
 
             wl = st.session_state["watchlist_tw"]
             in_wl = stock_id.strip() in wl
@@ -155,7 +181,7 @@ with tab_sector:
         name = name_map.get(row["_id"], row["代號"])
         row["名稱"] = f"👑 {name}" if row["_id"] in leader_ids else name
 
-    df_sector = pd.DataFrame(rows)[["代號", "名稱", "收盤價", "漲跌", "漲跌幅", "成交量(張)"]]
+    df_sector = pd.DataFrame(rows)[["代號", "名稱", "現價", "漲跌", "漲跌幅", "成交量(張)", "即時"]]
 
     def color_change(val):
         if isinstance(val, str):
@@ -171,6 +197,7 @@ with tab_sector:
         return ""
 
     styled = df_sector.style.map(color_change, subset=["漲跌", "漲跌幅"])
+
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
     # 點擊查看個股 K 線
