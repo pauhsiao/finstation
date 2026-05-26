@@ -31,7 +31,7 @@ if submitted and new_input.strip():
         candidates = [keyword]
     else:
         results = search_taiwan_stocks(keyword)
-        candidates = [r["stock_id"] for r in results[:5]]
+        candidates = [r["stock_id"] for r in results[:10]]
 
     if not candidates:
         st.error(f"找不到「{keyword}」，請確認名稱或代號")
@@ -54,7 +54,7 @@ if submitted and new_input.strip():
 
 if "search_candidates" in st.session_state:
     results = search_taiwan_stocks(st.session_state["search_keyword"])
-    options = [f"{r['stock_id']} {r['stock_name']}" for r in results[:5]]
+    options = [f"{r['stock_id']} {r['stock_name']}" for r in results[:10]]
     chosen = st.selectbox("找到多個結果，請選擇：", options, key="pick_stock")
     if st.button("確認加入"):
         sid = chosen.split(" ")[0]
