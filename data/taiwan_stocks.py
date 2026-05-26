@@ -115,11 +115,14 @@ def search_taiwan_stocks(keyword: str) -> list[dict]:
         r = requests.get(FINMIND_BASE, params=params, timeout=15)
         data = r.json().get("data", [])
         keyword = keyword.lower()
-        return [
-            s for s in data
-            if keyword in s.get("stock_id", "").lower()
-            or keyword in s.get("stock_name", "").lower()
-        ][:20]
+        seen = set()
+        results = []
+        for s in data:
+            sid = s.get("stock_id", "")
+            if (keyword in sid.lower() or keyword in s.get("stock_name", "").lower()) and sid not in seen:
+                seen.add(sid)
+                results.append(s)
+        return results[:20]
     except Exception:
         return []
 
