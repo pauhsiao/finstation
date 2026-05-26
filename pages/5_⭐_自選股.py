@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote, search_taiwan_stocks
 from data.db import wl_load, wl_add, wl_remove
 from dotenv import load_dotenv
 
@@ -21,15 +21,49 @@ wl: list = st.session_state["watchlist_tw"]
 # 新增股票
 with st.form("add_form", clear_on_submit=True):
     c1, c2 = st.columns([4, 1])
-    new_id = c1.text_input("新增股票代號", placeholder="例如：2330、6472")
-    if c2.form_submit_button("新增", use_container_width=True) and new_id.strip():
-        sid = new_id.strip()
+    new_input = c1.text_input("新增股票（代號或中文名稱）", placeholder="例如：2330 或 台積電")
+    submitted = c2.form_submit_button("新增", use_container_width=True)
+
+if submitted and new_input.strip():
+    keyword = new_input.strip()
+    # 純數字 → 直接當代號
+    if keyword.isdigit():
+        candidates = [keyword]
+    else:
+        results = search_taiwan_stocks(keyword)
+        candidates = [r["stock_id"] for r in results[:5]]
+
+    if not candidates:
+        st.error(f"找不到「{keyword}」，請確認名稱或代號")
+    elif len(candidates) == 1:
+        sid = candidates[0]
+        info = get_taiwan_stock_info(sid)
+        name = info.get("stock_name", sid)
         if sid not in wl:
             wl.append(sid)
             wl_add(sid)
-            st.success(f"已加入 {sid}")
+            st.success(f"已加入 {sid} {name}")
         else:
-            st.info(f"{sid} 已在自選股中")
+            st.info(f"{sid} {name} 已在自選股中")
+    else:
+        # 多個結果 → 讓使用者選
+        if "search_candidates" not in st.session_state:
+            st.session_state["search_candidates"] = candidates
+            st.session_state["search_keyword"] = keyword
+            st.rerun()
+
+if "search_candidates" in st.session_state:
+    results = search_taiwan_stocks(st.session_state["search_keyword"])
+    options = [f"{r['stock_id']} {r['stock_name']}" for r in results[:5]]
+    chosen = st.selectbox("找到多個結果，請選擇：", options, key="pick_stock")
+    if st.button("確認加入"):
+        sid = chosen.split(" ")[0]
+        if sid not in wl:
+            wl.append(sid)
+            wl_add(sid)
+        del st.session_state["search_candidates"]
+        del st.session_state["search_keyword"]
+        st.rerun()
 
 st.divider()
 
