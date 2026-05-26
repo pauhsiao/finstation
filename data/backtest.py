@@ -79,7 +79,7 @@ def ma_cross_signals(df: pd.DataFrame, fast: int = 5, slow: int = 20) -> pd.Seri
 def rsi_signals(df: pd.DataFrame, period: int = 14, oversold: int = 30, overbought: int = 70) -> pd.Series:
     from data.indicators import add_rsi
     df2 = add_rsi(df.copy(), period)
-    col = f"RSI_{period}"
+    col = "RSI"
     signals = pd.Series(0, index=df2.index)
     signals[(df2[col] < oversold) & (df2[col].shift(1) >= oversold)] = 1
     signals[(df2[col] > overbought) & (df2[col].shift(1) <= overbought)] = -1
