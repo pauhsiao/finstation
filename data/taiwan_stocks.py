@@ -8,7 +8,7 @@ FINMIND_BASE = "https://api.finmindtrade.com/api/v4/data"
 TWSE_REALTIME = "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
 
 
-def get_realtime_quote(stock_id: str) -> dict | None:
+def get_realtime_quote(stock_id: str):
     """
     從 TWSE/TPEX 即時 API 取得盤中報價。
     盤後或無資料時回傳 None，呼叫端應 fallback 到 EOD 資料。

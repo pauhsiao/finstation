@@ -53,7 +53,7 @@ def holdings_load(user_id: str = "default") -> list[dict]:
         return []
 
 
-def holdings_add(user_id: str = "default", **kwargs) -> dict | None:
+def holdings_add(user_id: str = "default", **kwargs):
     try:
         res = get_db().table("holdings").insert({"user_id": user_id, **kwargs}).execute()
         return res.data[0] if res.data else None
