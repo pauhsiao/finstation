@@ -6,6 +6,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote
 from data.tw_sectors import TW_SECTORS
+from data.db import wl_load, wl_add, wl_remove
 from utils.charts import build_stock_chart
 
 load_dotenv()
@@ -14,7 +15,8 @@ st.set_page_config(page_title="台股市場 | FinStation", page_icon="🇹🇼",
 st.title("🇹🇼 台股市場")
 
 if "watchlist_tw" not in st.session_state:
-    st.session_state["watchlist_tw"] = ["2330", "2454", "2317", "2308", "2891"]
+    loaded = wl_load()
+    st.session_state["watchlist_tw"] = loaded if loaded is not None else ["2330", "2454", "2317", "2308", "2891"]
 
 
 @st.cache_data(ttl=300)
@@ -147,8 +149,13 @@ with tab_stock:
             if mc5.button(btn_label):
                 if in_wl:
                     wl.remove(stock_id.strip())
+                    wl_remove(stock_id.strip())
                 else:
-                    wl.append(stock_id.strip())
+                    try:
+                        wl_add(stock_id.strip())
+                        wl.append(stock_id.strip())
+                    except RuntimeError as e:
+                        st.error(str(e))
                 st.rerun()
 
             fig = build_stock_chart(

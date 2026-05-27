@@ -63,8 +63,8 @@ with tab1:
 with tab2:
     if st.button("一鍵分析自選股", use_container_width=True):
         wl = wl_load()
-        if not wl:
-            wl = ["2330", "2454", "2317", "2308", "2891"]
+        if not wl:  # None（連線失敗）或空清單都 fallback
+            wl = st.session_state.get("watchlist_tw", ["2330", "2454", "2317", "2308", "2891"])
 
         lines = []
         for s in wl:
@@ -191,14 +191,13 @@ with tab4:
             st.info("尚無持倉紀錄，請先到「我的持倉」頁面新增")
         else:
             lines = []
-            total_cost = 0
+            total_cost = sum(h["shares"] * h["buy_price"] for h in holdings)
             for h in holdings:
                 rt = get_realtime_quote(h["stock_id"])
                 cur_price = rt["price"] if rt else h["buy_price"]
                 cost = h["shares"] * h["buy_price"]
                 value = h["shares"] * cur_price
                 pnl_pct = (value - cost) / cost * 100
-                total_cost += cost
                 lines.append(
                     f"{h['stock_id']} {h.get('stock_name','')}："
                     f"持股 {h['shares']} 股，買入均價 {h['buy_price']:.2f}，"
