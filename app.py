@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,6 +18,17 @@ if "watchlist_tw" not in st.session_state:
 
 st.title("📊 FinStation")
 st.caption("個人金融研究工作站")
+
+# 防止 Ctrl+C 觸發 Streamlit 的清除快取快捷鍵
+components.html("""
+<script>
+window.parent.document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.stopImmediatePropagation();
+    }
+}, true);
+</script>
+""", height=0)
 
 # Market overview
 st.subheader("市場概覽")
