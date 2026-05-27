@@ -1,11 +1,10 @@
 import streamlit as st
 import plotly.graph_objects as go
-import plotly.figure_factory as ff
 import pandas as pd
 import numpy as np
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote, search_taiwan_stocks
 from data.backtest import (run_backtest, ma_cross_signals, rsi_signals, bb_signals,
                             optimize_ma, calc_var)
 from data.db import holdings_load
@@ -16,12 +15,43 @@ load_dotenv()
 st.set_page_config(page_title="回測分析 | FinStation", page_icon="📈", layout="wide")
 st.title("📈 量化回測 & 風險分析")
 
+
+def stock_search_widget(label: str, default: str, key: str) -> str:
+    """輸入框支援代號或中文名稱，回傳最終 stock_id"""
+    keyword = st.text_input(label, value=default, key=key,
+                            placeholder="代號（2330）或中文名稱（台積電）")
+    sid = keyword.strip()
+    if sid and not sid.isdigit():
+        matches = search_taiwan_stocks(sid)
+        if matches:
+            options = [f"{s['stock_id']} {s['stock_name']}" for s in matches[:10]]
+            chosen = st.selectbox("搜尋結果，請選擇：", options, key=f"{key}_pick")
+            sid = chosen.split(" ")[0]
+        else:
+            st.warning(f"找不到「{sid}」，請確認名稱或代號")
+            sid = ""
+    return sid
+
+
+def fetch_price(sid: str, days: int) -> pd.DataFrame:
+    """取得股價，失敗時顯示明確錯誤"""
+    if not sid:
+        return pd.DataFrame()
+    for attempt in range(2):
+        df = get_taiwan_stock_price(sid, days=days)
+        if not df.empty:
+            return df
+    st.error(f"❌ 無法取得 {sid} 的數據，可能原因：FinMind API 暫時無回應、代號錯誤，或超出免費額度。請稍後再試。")
+    return pd.DataFrame()
+
+
 tab1, tab2, tab3, tab4 = st.tabs(["🔄 策略回測", "🎯 買賣訊號", "⚠️ 風險分析", "🔧 參數最佳化"])
 
 # ── Tab 1: 策略回測 ─────────────────────────────────────────────────────
 with tab1:
     c1, c2, c3 = st.columns([2, 2, 2])
-    sid = c1.text_input("股票代號", value="2330", key="bt_sid")
+    with c1:
+        sid = stock_search_widget("股票代號或中文名稱", "2330", "bt_sid")
     strategy = c2.selectbox("策略", ["均線交叉 (MA Cross)", "RSI 超賣/超買", "布林通道突破"])
     period_opt = c3.selectbox("回測區間", ["180天", "365天", "730天"], index=1)
     days = {"180天": 180, "365天": 365, "730天": 730}[period_opt]
@@ -33,7 +63,7 @@ with tab1:
             slow = p2.slider("慢線 (天)", 10, 60, 20)
         elif "RSI" in strategy:
             rsi_period = p1.slider("RSI 週期", 7, 21, 14)
-            oversold = p2.slider("超賣線", 20, 40, 30)
+            oversold = p1.slider("超賣線", 20, 40, 30)
             overbought = p2.slider("超買線", 60, 80, 70)
         else:
             bb_period = p1.slider("布林週期", 10, 30, 20)
@@ -41,12 +71,10 @@ with tab1:
 
     if st.button("開始回測", use_container_width=True):
         with st.spinner("回測中..."):
-            df = get_taiwan_stock_price(sid.strip(), days=days)
-            info = get_taiwan_stock_info(sid.strip())
+            df = fetch_price(sid, days)
+            info = get_taiwan_stock_info(sid) if sid else {}
 
-        if df.empty:
-            st.error("無法取得數據")
-        else:
+        if not df.empty:
             if "均線" in strategy:
                 sigs = ma_cross_signals(df, fast, slow)
             elif "RSI" in strategy:
@@ -58,7 +86,6 @@ with tab1:
             name = info.get("stock_name", sid)
 
             m1, m2, m3, m4, m5 = st.columns(5)
-            color = "normal" if result["total_return"] >= 0 else "inverse"
             m1.metric("策略報酬", f"{result['total_return']:+.1f}%",
                       f"買持 {result['buy_hold_return']:+.1f}%")
             m2.metric("最大回撤", f"{result['max_drawdown']:.1f}%")
@@ -66,7 +93,6 @@ with tab1:
             m4.metric("勝率", f"{result['win_rate']:.0f}%")
             m5.metric("交易次數", f"{result['total_trades']} 次")
 
-            # 資金曲線
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=df["date"], y=result["equity"],
@@ -89,7 +115,8 @@ with tab1:
 # ── Tab 2: 買賣訊號 ─────────────────────────────────────────────────────
 with tab2:
     c1, c2 = st.columns([2, 2])
-    sid2 = c1.text_input("股票代號", value="2330", key="sig_sid")
+    with c1:
+        sid2 = stock_search_widget("股票代號或中文名稱", "2330", "sig_sid")
     sig_strategy = c2.selectbox("策略", ["均線交叉", "RSI", "布林通道"], key="sig_strat")
 
     if sig_strategy == "RSI":
@@ -103,10 +130,9 @@ with tab2:
         sig_slow = sp2.slider("慢線 (天)", 10, 60, 20, key="sig_slow")
 
     if st.button("顯示訊號", use_container_width=True):
-        df2 = get_taiwan_stock_price(sid2.strip(), days=180)
-        if df2.empty:
-            st.error("無法取得數據")
-        else:
+        with st.spinner("載入中..."):
+            df2 = fetch_price(sid2, 180)
+        if not df2.empty:
             if sig_strategy == "均線交叉":
                 sigs2 = ma_cross_signals(df2, sig_fast, sig_slow)
             elif sig_strategy == "RSI":
@@ -155,11 +181,14 @@ with tab3:
                 if not df_h.empty:
                     price_data[sid_h] = df_h.set_index("date")["Close"]
 
-        if len(price_data) >= 2:
+        if not price_data:
+            st.error("❌ 無法取得持倉股票數據，請稍後再試")
+        elif len(price_data) < 2:
+            st.info("需要至少 2 支持倉才能計算相關性")
+        else:
             prices_df = pd.DataFrame(price_data).dropna()
             returns_df = prices_df.pct_change().dropna()
 
-            # 相關性熱力圖
             corr = returns_df.corr()
             names = [f"{s} {next((h['stock_name'] for h in holdings if h['stock_id']==s), s)}" for s in corr.columns]
             fig3 = go.Figure(go.Heatmap(
@@ -172,7 +201,6 @@ with tab3:
                                margin=dict(l=0, r=0, t=40, b=0))
             st.plotly_chart(fig3, use_container_width=True)
 
-            # VaR
             st.subheader("個股 VaR（95% 信心水準，單日）")
             var_rows = []
             for sid_h, ret in returns_df.items():
@@ -192,22 +220,19 @@ with tab3:
                 })
             st.dataframe(pd.DataFrame(var_rows), use_container_width=True, hide_index=True)
             st.caption("VaR：在95%的情況下，單日最大可能虧損金額")
-        else:
-            st.info("需要至少 2 支持倉才能計算相關性")
 
 # ── Tab 4: 參數最佳化 ─────────────────────────────────────────────────────
 with tab4:
     c1, c2 = st.columns([2, 2])
-    sid4 = c1.text_input("股票代號", value="2330", key="opt_sid")
+    with c1:
+        sid4 = stock_search_widget("股票代號或中文名稱", "2330", "opt_sid")
     days4 = {"365天": 365, "730天": 730}[c2.selectbox("回測區間", ["365天", "730天"])]
 
     if st.button("尋找最佳 MA 參數", use_container_width=True):
         with st.spinner("最佳化中（約10秒）..."):
-            df4 = get_taiwan_stock_price(sid4.strip(), days=days4)
+            df4 = fetch_price(sid4, days4)
 
-        if df4.empty:
-            st.error("無法取得數據")
-        else:
+        if not df4.empty:
             opt_df = optimize_ma(df4)
             st.subheader("MA Cross 參數最佳化結果（依夏普比率排序）")
             st.dataframe(opt_df.head(20), use_container_width=True, hide_index=True)
