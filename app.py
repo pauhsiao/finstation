@@ -11,7 +11,9 @@ st.set_page_config(
 )
 
 if "watchlist_tw" not in st.session_state:
-    st.session_state["watchlist_tw"] = ["2330", "2454", "2317", "2308", "2891"]
+    from data.db import wl_load
+    loaded = wl_load()
+    st.session_state["watchlist_tw"] = loaded if loaded is not None else ["2330", "2454", "2317", "2308", "2891"]
 
 st.title("📊 FinStation")
 st.caption("個人金融研究工作站")

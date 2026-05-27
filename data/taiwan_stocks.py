@@ -105,26 +105,36 @@ def get_taiwan_stock_info(stock_id: str) -> dict:
         return {}
 
 
+_stock_list_cache: list[dict] = []
+_stock_list_ts: float = 0
+
+
+def _get_all_stocks() -> list[dict]:
+    """取得全部台股清單，快取 1 小時"""
+    import time
+    global _stock_list_cache, _stock_list_ts
+    if _stock_list_cache and time.time() - _stock_list_ts < 3600:
+        return _stock_list_cache
+    try:
+        r = requests.get(FINMIND_BASE, params={"dataset": "TaiwanStockInfo", "token": FINMIND_TOKEN}, timeout=15)
+        _stock_list_cache = r.json().get("data", [])
+        _stock_list_ts = time.time()
+    except Exception:
+        pass
+    return _stock_list_cache
+
+
 def search_taiwan_stocks(keyword: str) -> list[dict]:
     """搜尋台股股票代號或名稱"""
-    params = {
-        "dataset": "TaiwanStockInfo",
-        "token": FINMIND_TOKEN,
-    }
-    try:
-        r = requests.get(FINMIND_BASE, params=params, timeout=15)
-        data = r.json().get("data", [])
-        keyword = keyword.lower()
-        seen = set()
-        results = []
-        for s in data:
-            sid = s.get("stock_id", "")
-            if (keyword in sid.lower() or keyword in s.get("stock_name", "").lower()) and sid not in seen:
-                seen.add(sid)
-                results.append(s)
-        return results[:20]
-    except Exception:
-        return []
+    keyword = keyword.lower()
+    seen: set = set()
+    results = []
+    for s in _get_all_stocks():
+        sid = s.get("stock_id", "")
+        if (keyword in sid.lower() or keyword in s.get("stock_name", "").lower()) and sid not in seen:
+            seen.add(sid)
+            results.append(s)
+    return results[:20]
 
 
 def get_taiwan_market_summary() -> pd.DataFrame:

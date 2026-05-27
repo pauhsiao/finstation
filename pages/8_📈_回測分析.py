@@ -92,15 +92,25 @@ with tab2:
     sid2 = c1.text_input("股票代號", value="2330", key="sig_sid")
     sig_strategy = c2.selectbox("策略", ["均線交叉", "RSI", "布林通道"], key="sig_strat")
 
+    if sig_strategy == "RSI":
+        sp1, sp2, sp3 = st.columns(3)
+        sig_rsi_period = sp1.slider("RSI 週期", 7, 21, 14, key="sig_rsi_p")
+        sig_oversold = sp2.slider("超賣線", 20, 40, 30, key="sig_os")
+        sig_overbought = sp3.slider("超買線", 60, 80, 70, key="sig_ob")
+    elif sig_strategy == "均線交叉":
+        sp1, sp2 = st.columns(2)
+        sig_fast = sp1.slider("快線 (天)", 3, 20, 5, key="sig_fast")
+        sig_slow = sp2.slider("慢線 (天)", 10, 60, 20, key="sig_slow")
+
     if st.button("顯示訊號", use_container_width=True):
         df2 = get_taiwan_stock_price(sid2.strip(), days=180)
         if df2.empty:
             st.error("無法取得數據")
         else:
             if sig_strategy == "均線交叉":
-                sigs2 = ma_cross_signals(df2, 5, 20)
+                sigs2 = ma_cross_signals(df2, sig_fast, sig_slow)
             elif sig_strategy == "RSI":
-                sigs2 = rsi_signals(df2)
+                sigs2 = rsi_signals(df2, sig_rsi_period, sig_oversold, sig_overbought)
             else:
                 sigs2 = bb_signals(df2)
 
