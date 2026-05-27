@@ -4,7 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote, search_taiwan_stocks
 from data.tw_sectors import TW_SECTORS
 from data.db import wl_load, wl_add, wl_remove
 from utils.charts import build_stock_chart
@@ -97,12 +97,24 @@ tab_stock, tab_sector = st.tabs(["📈 個股行情", "🏭 族群"])
 with tab_stock:
     col1, col2 = st.columns([2, 1])
     with col1:
-        stock_id = st.text_input("輸入股票代號（例如：2330、2317、6472）", value="2330")
+        keyword = st.text_input("輸入股票代號或中文名稱（例如：2330、台積電）", value="2330")
     with col2:
         period = st.selectbox("時間區間", ["30天", "90天", "180天", "365天"], index=2)
 
     period_map = {"30天": 30, "90天": 90, "180天": 180, "365天": 365}
     days = period_map[period]
+
+    # 解析輸入：純數字直接當代號，中文/英文名稱則搜尋
+    stock_id = keyword.strip()
+    if stock_id and not stock_id.isdigit():
+        matches = search_taiwan_stocks(stock_id)
+        if matches:
+            options = [f"{s['stock_id']} {s['stock_name']}" for s in matches[:10]]
+            chosen = st.selectbox("搜尋結果，請選擇：", options, key="tw_search_pick")
+            stock_id = chosen.split(" ")[0]
+        else:
+            st.warning(f"找不到「{stock_id}」，請確認名稱或代號")
+            stock_id = ""
 
     with st.expander("📐 技術指標設定", expanded=False):
         ic1, ic2, ic3, ic4, ic5 = st.columns(5)
