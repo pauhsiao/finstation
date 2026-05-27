@@ -18,22 +18,23 @@ def get_db() -> Client:
 
 # ── Watchlist ──────────────────────────────────────────────────────────────
 
-def wl_load(user_id: str = "default") -> list[str]:
+def wl_load(user_id: str = "default") -> list[str] | None:
     try:
         res = get_db().table("watchlist").select("stock_id").eq("user_id", user_id).execute()
         return [r["stock_id"] for r in res.data]
     except Exception:
-        return []
+        return None
 
 
-def wl_add(stock_id: str, user_id: str = "default"):
+def wl_add(stock_id: str, user_id: str = "default") -> bool:
     try:
         get_db().table("watchlist").upsert(
             {"user_id": user_id, "stock_id": stock_id},
             on_conflict="user_id,stock_id"
         ).execute()
-    except Exception:
-        pass
+        return True
+    except Exception as e:
+        raise RuntimeError(f"自選股儲存失敗：{e}") from e
 
 
 def wl_remove(stock_id: str, user_id: str = "default"):

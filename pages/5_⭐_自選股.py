@@ -11,10 +11,14 @@ load_dotenv()
 st.set_page_config(page_title="自選股 | FinStation", page_icon="⭐", layout="wide")
 st.title("⭐ 自選股")
 
-# 從 Supabase 載入，fallback 到 session_state 預設
+# 從 Supabase 載入，None 表示連線失敗才 fallback
 if "watchlist_tw" not in st.session_state:
     loaded = wl_load()
-    st.session_state["watchlist_tw"] = loaded if loaded else ["2330", "2454", "2317", "2308", "2891"]
+    if loaded is None:
+        st.warning("⚠️ 無法連線 Supabase，顯示暫存清單，新增的股票本次不會儲存")
+        st.session_state["watchlist_tw"] = ["2330", "2454", "2317", "2308", "2891"]
+    else:
+        st.session_state["watchlist_tw"] = loaded
 
 wl: list = st.session_state["watchlist_tw"]
 
@@ -40,9 +44,12 @@ if submitted and new_input.strip():
         info = get_taiwan_stock_info(sid)
         name = info.get("stock_name", sid)
         if sid not in wl:
-            wl.append(sid)
-            wl_add(sid)
-            st.success(f"已加入 {sid} {name}")
+            try:
+                wl_add(sid)
+                wl.append(sid)
+                st.success(f"已加入 {sid} {name}")
+            except RuntimeError as e:
+                st.error(str(e))
         else:
             st.info(f"{sid} {name} 已在自選股中")
     else:
@@ -59,8 +66,11 @@ if "search_candidates" in st.session_state:
     if st.button("確認加入"):
         sid = chosen.split(" ")[0]
         if sid not in wl:
-            wl.append(sid)
-            wl_add(sid)
+            try:
+                wl_add(sid)
+                wl.append(sid)
+            except RuntimeError as e:
+                st.error(str(e))
         del st.session_state["search_candidates"]
         del st.session_state["search_keyword"]
         st.rerun()
