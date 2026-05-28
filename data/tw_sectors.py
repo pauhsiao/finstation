@@ -22,7 +22,7 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "2330", "name": "台積電", "leader": True},
         {"id": "2303", "name": "聯電"},
         {"id": "5347", "name": "世界先進"},
-        {"id": "6405", "name": "金麗科"},
+        {"id": "3228", "name": "金麗科"},
     ],
     "IC 設計": [
         {"id": "2454", "name": "聯發科", "leader": True},
@@ -52,7 +52,6 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "5388", "name": "中磊"},
         {"id": "6285", "name": "啟碁"},
         {"id": "3037", "name": "欣興"},
-        {"id": "2406", "name": "國碁"},
     ],
     "功率半導體 / MOSFET": [
         {"id": "8261", "name": "富鼎", "leader": True},
@@ -80,14 +79,12 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "3017", "name": "奇鋐", "leader": True},
         {"id": "3324", "name": "雙鴻"},
         {"id": "2421", "name": "建準"},
-        {"id": "6230", "name": "超眾"},
-        {"id": "2350", "name": "環電"},
+        {"id": "6230", "name": "尼得科超眾"},
     ],
     "低軌衛星": [
         {"id": "6285", "name": "啟碁", "leader": True},
         {"id": "2314", "name": "台揚"},
         {"id": "3491", "name": "昇達科"},
-        {"id": "6556", "name": "鐳洋科"},
         {"id": "5222", "name": "全訊"},
         {"id": "3558", "name": "神準"},
         {"id": "5388", "name": "中磊"},
@@ -101,7 +98,7 @@ TW_SECTORS: dict[str, list[dict]] = {
     ],
     "鋼鐵": [
         {"id": "2002", "name": "中鋼", "leader": True},
-        {"id": "2006", "name": "東鋼"},
+        {"id": "2006", "name": "東和鋼鐵"},
         {"id": "2007", "name": "燁興"},
         {"id": "2022", "name": "聚亨"},
     ],
@@ -118,6 +115,5 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "5299", "name": "杰力"},
         {"id": "8255", "name": "朋程"},
         {"id": "1590", "name": "亞德客-KY"},
-        {"id": "2264", "name": "理隆"},
     ],
 }
