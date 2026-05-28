@@ -80,18 +80,25 @@ with col_us:
         st.caption("數據暫時無法取得")
 
 st.divider()
+st.subheader("功能導覽")
 
-col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    st.info("🇹🇼 **台股市場**\n\nK線 + 技術指標")
-with col2:
-    st.info("🇺🇸 **美股市場**\n\n指數 + 個股查詢")
-with col3:
-    st.info("🌐 **總體經濟**\n\n利率、CPI、殖利率")
-with col4:
-    st.info("📰 **財經新聞**\n\n即時新聞動態")
-with col5:
-    st.info("⭐ **自選股**\n\n追蹤你的持股清單")
+pages = [
+    ("pages/1_🇹🇼_台股市場.py",  "🇹🇼 台股市場",  "K線 + 技術指標 + 族群"),
+    ("pages/2_🇺🇸_美股市場.py",  "🇺🇸 美股市場",  "指數 + 個股查詢"),
+    ("pages/3_🌐_總體經濟.py",   "🌐 總體經濟",   "利率、CPI、殖利率"),
+    ("pages/4_📰_財經新聞.py",   "📰 財經新聞",   "即時新聞動態"),
+    ("pages/5_⭐_自選股.py",     "⭐ 自選股",     "追蹤你的持股清單"),
+    ("pages/6_💼_我的持倉.py",   "💼 我的持倉",   "損益計算 + 圖表"),
+    ("pages/7_🤖_AI助理.py",    "🤖 AI 投資助理", "個股分析 + 市場問答"),
+    ("pages/8_📈_回測分析.py",   "📈 量化回測",   "策略回測 + 風險分析"),
+]
 
-st.divider()
-st.caption("Phase 2 — 技術指標 + 成交量 + 自選股")
+for i in range(0, len(pages), 2):
+    c1, c2 = st.columns(2)
+    with c1:
+        path, label, desc = pages[i]
+        st.page_link(path, label=f"**{label}**\n\n{desc}", use_container_width=True)
+    if i + 1 < len(pages):
+        with c2:
+            path, label, desc = pages[i + 1]
+            st.page_link(path, label=f"**{label}**\n\n{desc}", use_container_width=True)
