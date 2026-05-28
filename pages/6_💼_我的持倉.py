@@ -38,6 +38,9 @@ st.divider()
 # ── 載入持倉 ──────────────────────────────────────────────────────────────
 holdings = holdings_load()
 
+if holdings is None:
+    st.error("⚠️ 無法連線 Supabase，持倉資料暫時無法載入，請稍後再試")
+    st.stop()
 if not holdings:
     st.info("尚無持倉紀錄，請在上方新增")
     st.stop()

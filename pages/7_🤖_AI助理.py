@@ -3,7 +3,7 @@ import anthropic
 import re
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote, get_taiwan_market_summary
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_realtime_quote, get_taiwan_market_summary, search_taiwan_stocks
 from data.news import get_financial_news
 from data.db import wl_load, holdings_load
 from dotenv import load_dotenv
@@ -37,7 +37,7 @@ def build_stock_context(stock_id: str) -> str:
 def ask_claude(system: str, user: str) -> str:
     with st.spinner("AI 分析中..."):
         msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             system=system,
             messages=[{"role": "user", "content": user}],
@@ -50,9 +50,19 @@ tab1, tab2, tab3, tab4 = st.tabs(["📊 個股分析", "⭐ 自選股摘要", "�
 # ── Tab 1: 個股分析 ──────────────────────────────────────────────────────
 with tab1:
     col1, col2 = st.columns([3, 1])
-    sid = col1.text_input("輸入股票代號", value="2330", key="ai_stock")
-    if col2.button("分析", use_container_width=True, key="btn_stock"):
-        ctx = build_stock_context(sid.strip())
+    keyword = col1.text_input("輸入股票代號或中文名稱", value="2330", key="ai_stock")
+    sid = keyword.strip()
+    if sid and not sid.isdigit():
+        matches = search_taiwan_stocks(sid)
+        if matches:
+            options = [f"{s['stock_id']} {s['stock_name']}" for s in matches[:10]]
+            chosen = st.selectbox("搜尋結果，請選擇：", options, key="ai_stock_pick")
+            sid = chosen.split(" ")[0]
+        else:
+            st.warning(f"找不到「{sid}」，請確認名稱或代號")
+            sid = ""
+    if col2.button("分析", use_container_width=True, key="btn_stock") and sid:
+        ctx = build_stock_context(sid)
         answer = ask_claude(
             "你是一位專業的台股分析師，用繁體中文回答，語氣簡潔專業，300字以內。",
             f"請根據以下資料分析這支股票的近期走勢與操作建議：\n\n{ctx}"
@@ -168,7 +178,7 @@ with tab3:
         with st.chat_message("assistant"):
             with st.spinner("思考中..."):
                 msg = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
+                    model="claude-sonnet-4-6",
                     max_tokens=1024,
                     system="你是一位專業的台股投資顧問，用繁體中文回答，語氣簡潔務實。回答時以提供的即時市場資料為準，不要憑空猜測股票名稱或數字。",
                     messages=history,
@@ -187,7 +197,9 @@ with tab3:
 with tab4:
     if st.button("分析我的持倉", use_container_width=True):
         holdings = holdings_load()
-        if not holdings:
+        if holdings is None:
+            st.error("⚠️ 無法連線 Supabase，請稍後再試")
+        elif not holdings:
             st.info("尚無持倉紀錄，請先到「我的持倉」頁面新增")
         else:
             lines = []

@@ -46,12 +46,12 @@ def wl_remove(stock_id: str, user_id: str = "default"):
 
 # ── Holdings ───────────────────────────────────────────────────────────────
 
-def holdings_load(user_id: str = "default") -> list[dict]:
+def holdings_load(user_id: str = "default") -> list[dict] | None:
     try:
         res = get_db().table("holdings").select("*").eq("user_id", user_id).order("created_at").execute()
         return res.data
     except Exception:
-        return []
+        return None
 
 
 def holdings_add(user_id: str = "default", **kwargs):

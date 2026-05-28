@@ -169,7 +169,9 @@ with tab3:
     st.subheader("持倉風險分析")
     holdings = holdings_load()
 
-    if not holdings:
+    if holdings is None:
+        st.error("⚠️ 無法連線 Supabase，請稍後再試")
+    elif not holdings:
         st.info("請先到「我的持倉」新增持倉")
     else:
         stock_ids = [h["stock_id"] for h in holdings]
