@@ -1,19 +1,16 @@
 import os
+import streamlit as st
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
-_client: Client | None = None
 
-
+@st.cache_resource
 def get_db() -> Client:
-    global _client
-    if _client is None:
-        url = os.getenv("SUPABASE_URL", "")
-        key = os.getenv("SUPABASE_KEY", "")
-        _client = create_client(url, key)
-    return _client
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_KEY", "")
+    return create_client(url, key)
 
 
 # ── Watchlist ──────────────────────────────────────────────────────────────

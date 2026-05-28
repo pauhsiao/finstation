@@ -29,41 +29,40 @@ def cached_stock(stock_id: str, days: int):
     return get_taiwan_stock_price(stock_id, days=days), get_taiwan_stock_info(stock_id)
 
 
-@st.cache_data(ttl=30)
+def _fetch_one_sector_stock(sid: str) -> dict:
+    rt = get_realtime_quote(sid)
+    if rt:
+        return {
+            "_id": sid, "代號": sid,
+            "現價": f"{rt['price']:.2f}",
+            "漲跌": f"{rt['change']:+.2f}",
+            "漲跌幅": f"{rt['change_pct']:+.2f}%",
+            "成交量(張)": rt["volume"],
+            "即時": "✅" if rt["is_realtime"] else "—",
+        }
+    df = get_taiwan_stock_price(sid, days=5)
+    if not df.empty:
+        latest = df.iloc[-1]
+        prev = df.iloc[-2] if len(df) > 1 else latest
+        change = latest["Close"] - prev["Close"]
+        change_pct = change / prev["Close"] * 100
+        return {
+            "_id": sid, "代號": sid,
+            "現價": f"{latest['Close']:.2f}",
+            "漲跌": f"{change:+.2f}",
+            "漲跌幅": f"{change_pct:+.2f}%",
+            "成交量(張)": int(latest.get("Volume", 0)) if "Volume" in latest.index else 0,
+            "即時": "—",
+        }
+    return {"_id": sid, "代號": sid, "現價": "—", "漲跌": "—", "漲跌幅": "—", "成交量(張)": 0, "即時": "—"}
+
+
+@st.cache_data(ttl=60)
 def cached_sector(stock_ids: tuple) -> list[dict]:
-    rows = []
-    for sid in stock_ids:
-        rt = get_realtime_quote(sid)
-        if rt:
-            rows.append({
-                "_id": sid,
-                "代號": sid,
-                "現價": f"{rt['price']:.2f}",
-                "漲跌": f"{rt['change']:+.2f}",
-                "漲跌幅": f"{rt['change_pct']:+.2f}%",
-                "成交量(張)": rt["volume"],
-                "即時": "✅" if rt["is_realtime"] else "—",
-            })
-        else:
-            df = get_taiwan_stock_price(sid, days=5)
-            if not df.empty:
-                latest = df.iloc[-1]
-                prev = df.iloc[-2] if len(df) > 1 else latest
-                change = latest["Close"] - prev["Close"]
-                change_pct = change / prev["Close"] * 100
-                rows.append({
-                    "_id": sid,
-                    "代號": sid,
-                    "現價": f"{latest['Close']:.2f}",
-                    "漲跌": f"{change:+.2f}",
-                    "漲跌幅": f"{change_pct:+.2f}%",
-                    "成交量(張)": int(latest.get("Volume", 0)) if "Volume" in latest.index else 0,
-                    "即時": "—",
-                })
-            else:
-                rows.append({"_id": sid, "代號": sid, "現價": "—",
-                             "漲跌": "—", "漲跌幅": "—", "成交量(張)": 0, "即時": "—"})
-    return rows
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        results = list(ex.map(_fetch_one_sector_stock, stock_ids))
+    return results
 
 
 # 大盤
