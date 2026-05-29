@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote, search_taiwan_stocks
+from data.institutional import get_institutional_history, get_market_institutional_today, get_institutional_holding
 from data.tw_sectors import TW_SECTORS
 from data.db import wl_load, wl_add, wl_remove
 from utils.charts import build_stock_chart
@@ -90,7 +91,7 @@ else:
 st.divider()
 
 # 三個 Tab
-tab_stock, tab_sector = st.tabs(["📈 個股行情", "🏭 族群"])
+tab_stock, tab_sector, tab_inst = st.tabs(["📈 個股行情", "🏭 族群", "🏦 法人動向"])
 
 # ── Tab 1: 個股 ──────────────────────────────────────────
 with tab_stock:
@@ -235,3 +236,102 @@ with tab_sector:
         st.plotly_chart(fig_k, use_container_width=True)
     else:
         st.warning("無法取得該股票數據")
+
+# ── Tab 3: 法人動向 ──────────────────────────────────────────
+with tab_inst:
+    inst_mode = st.radio("查看模式", ["個股法人買賣超", "今日全市場法人排行"], horizontal=True)
+
+    if inst_mode == "個股法人買賣超":
+        col_a, col_b = st.columns([2, 1])
+        with col_a:
+            inst_kw = st.text_input("輸入股票代號", value="2330", key="inst_stock")
+        with col_b:
+            inst_days = st.selectbox("天數", [30, 60, 90], index=1, key="inst_days")
+
+        inst_id = inst_kw.strip()
+        if inst_id:
+            @st.cache_data(ttl=300)
+            def cached_inst(sid, d):
+                return get_institutional_history(sid, d)
+
+            with st.spinner(f"載入 {inst_id} 法人數據..."):
+                df_inst = cached_inst(inst_id, inst_days)
+
+            if not df_inst.empty:
+                # 外資持股比例
+                holding = get_institutional_holding(inst_id)
+                if holding:
+                    st.metric("外資持股比例", f"{holding.get('foreign_holding_pct', 0):.1f}%",
+                              help=f"資料日期：{holding.get('date', '')}")
+
+                # 近期買賣超柱狀圖
+                import plotly.graph_objects as go
+                fig_inst = go.Figure()
+                df_plot = df_inst.head(30).sort_values("date")
+                colors_total = ["#ff4b4b" if v >= 0 else "#00cc44" for v in df_plot["合計"]]
+                fig_inst.add_trace(go.Bar(x=df_plot["date"], y=df_plot["外資"],
+                                          name="外資", marker_color="#00d4ff", opacity=0.8))
+                fig_inst.add_trace(go.Bar(x=df_plot["date"], y=df_plot["投信"],
+                                          name="投信", marker_color="#ffa500", opacity=0.8))
+                fig_inst.add_trace(go.Bar(x=df_plot["date"], y=df_plot["自營商"],
+                                          name="自營商", marker_color="#9b59b6", opacity=0.8))
+                fig_inst.update_layout(
+                    template="plotly_dark", barmode="relative",
+                    title=f"{inst_id} 三大法人買賣超（張）",
+                    height=350, margin=dict(l=0, r=0, t=40, b=0),
+                    legend=dict(orientation="h", y=1.1),
+                )
+                st.plotly_chart(fig_inst, use_container_width=True)
+
+                # 累計買賣超折線
+                df_plot["累計"] = df_plot["合計"].cumsum()
+                fig_cum = go.Figure()
+                fig_cum.add_trace(go.Scatter(
+                    x=df_plot["date"], y=df_plot["累計"],
+                    mode="lines+markers", name="累計買賣超",
+                    line=dict(color="#00d4ff", width=2),
+                    fill="tozeroy", fillcolor="rgba(0,212,255,0.08)",
+                ))
+                fig_cum.update_layout(
+                    template="plotly_dark", title="累計買賣超（張）",
+                    height=220, margin=dict(l=0, r=0, t=40, b=0),
+                )
+                st.plotly_chart(fig_cum, use_container_width=True)
+
+                # 原始數據
+                with st.expander("查看原始數據"):
+                    df_show = df_inst.copy()
+                    df_show["date"] = df_show["date"].dt.strftime("%Y-%m-%d")
+                    st.dataframe(df_show, use_container_width=True, hide_index=True)
+            else:
+                st.warning(f"查無 {inst_id} 的法人資料，請確認代號是否正確")
+
+    else:  # 今日全市場排行
+        @st.cache_data(ttl=600)
+        def cached_market_inst():
+            return get_market_institutional_today()
+
+        with st.spinner("載入今日法人買賣超排行..."):
+            df_mkt = cached_market_inst()
+
+        if not df_mkt.empty:
+            view = st.radio("排序", ["三大法人買超前20", "三大法人賣超前20", "外資買超前20"], horizontal=True)
+
+            if view == "三大法人買超前20":
+                df_view = df_mkt.nlargest(20, "三大法人合計")
+            elif view == "三大法人賣超前20":
+                df_view = df_mkt.nsmallest(20, "三大法人合計")
+            else:
+                df_view = df_mkt.nlargest(20, "外資買賣超")
+
+            def color_num(val):
+                if isinstance(val, (int, float)):
+                    return "color: #ff4b4b" if val > 0 else ("color: #00cc44" if val < 0 else "")
+                return ""
+
+            styled_mkt = df_view.style.map(
+                color_num, subset=["外資買賣超", "投信買賣超", "自營商買賣超", "三大法人合計"]
+            )
+            st.dataframe(styled_mkt, use_container_width=True, hide_index=True)
+        else:
+            st.info("今日法人資料尚未更新（通常盤後 18:00 後可查詢）")
