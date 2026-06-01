@@ -4,6 +4,69 @@ from data.institutional import get_institutional_history, get_margin_trading
 from data.indicators import add_moving_averages, add_macd, add_bollinger_bands
 
 
+def quick_tech_score(df: pd.DataFrame) -> dict:
+    """從已有的 price DataFrame 計算技術面各子分（不需額外 API 呼叫）。
+    回傳 {"total": int, "ma": int, "macd": int, "breakout": int, "bb": int, "vol": int}
+    """
+    result = {"total": 0, "ma": 0, "macd": 0, "breakout": 0, "bb": 0, "vol": 0}
+    if df.empty or len(df) < 20:
+        return result
+    try:
+        df = add_moving_averages(df)
+        df = add_macd(df)
+        df = add_bollinger_bands(df)
+        latest = df.iloc[-1]
+        close = float(latest["Close"])
+
+        # 均線多頭排列 (10)
+        ma5, ma20, ma60 = latest.get("MA5"), latest.get("MA20"), latest.get("MA60")
+        if pd.notna(ma5) and pd.notna(ma20) and pd.notna(ma60):
+            if ma5 > ma20 > ma60:
+                result["ma"] = 10
+            elif ma5 > ma20 or ma20 > ma60:
+                result["ma"] = 5
+        elif pd.notna(ma5) and pd.notna(ma20) and ma5 > ma20:
+            result["ma"] = 5
+
+        # MACD 轉強 (10)
+        macd_val, macd_sig = latest.get("MACD"), latest.get("MACD_Signal")
+        if pd.notna(macd_val) and pd.notna(macd_sig):
+            if macd_val > macd_sig:
+                result["macd"] += 5
+            if macd_val > 0:
+                result["macd"] += 5
+
+        # 突破近期高點 (10)
+        high60 = float(df["High"].tail(60).max()) if len(df) >= 60 else float(df["High"].max())
+        high20 = float(df["High"].tail(20).max())
+        if close >= high60:
+            result["breakout"] = 10
+        elif close >= high20:
+            result["breakout"] = 5
+
+        # 布林通道位置 (8)
+        bb_u, bb_l = latest.get("BB_Upper"), latest.get("BB_Lower")
+        if pd.notna(bb_u) and pd.notna(bb_l) and bb_u != bb_l:
+            ratio = (close - float(bb_l)) / (float(bb_u) - float(bb_l))
+            result["bb"] = round(max(0.0, min(1.0, ratio)) * 8)
+
+        # 量能放大 (7)
+        if "Volume" in df.columns and len(df) >= 20:
+            v5 = df["Volume"].tail(5).mean()
+            v20 = df["Volume"].tail(20).mean()
+            if v20 > 0:
+                r = v5 / v20
+                if r >= 1.2:
+                    result["vol"] = 7
+                elif r >= 1.0:
+                    result["vol"] = 4
+
+        result["total"] = result["ma"] + result["macd"] + result["breakout"] + result["bb"] + result["vol"]
+    except Exception:
+        pass
+    return result
+
+
 def score_stock(stock_id: str) -> dict:
     details = {}
     tech_score = 0
