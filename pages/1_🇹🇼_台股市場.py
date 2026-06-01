@@ -8,7 +8,10 @@ from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, ge
 from data.institutional import get_institutional_history, get_market_institutional_today, get_institutional_holding
 from data.tw_sectors import TW_SECTORS
 from data.db import wl_load, wl_add, wl_remove
+from data.scoring import score_stock
+from data.indicators import add_moving_averages, add_macd, add_bollinger_bands
 from utils.charts import build_stock_chart
+from utils.ai import ask_claude
 
 load_dotenv()
 
@@ -170,12 +173,84 @@ with tab_stock:
                         st.error(str(e))
                 st.rerun()
 
+            # ── 評分卡 ──────────────────────────────────────────
+            score_key = f"score_{stock_id.strip()}"
+            if score_key not in st.session_state:
+                with st.spinner("計算綜合評分..."):
+                    st.session_state[score_key] = score_stock(stock_id.strip())
+            sc = st.session_state[score_key]
+            total = sc["total"]
+            score_color = "#00cc44" if total >= 60 else ("#ffa500" if total >= 40 else "#ff4b4b")
+
+            with st.container(border=True):
+                sc1, sc2, sc3, sc4 = st.columns([2, 1, 1, 1])
+                sc1.markdown(
+                    f"<div style='font-size:2rem;font-weight:bold;color:{score_color}'>"
+                    f"⭐ {total} <span style='font-size:1rem;color:#888'>/ 100</span></div>",
+                    unsafe_allow_html=True,
+                )
+                sc2.metric("技術面", f"{sc['tech']}/45")
+                sc3.metric("籌碼面", f"{sc['chips']}/35")
+                sc4.metric("基本面", f"{sc['fundamental']}/20")
+
+                reason_key = f"score_reason_{stock_id.strip()}"
+                if st.button("🤖 查看評分理由", key=f"btn_reason_{stock_id.strip()}"):
+                    detail_lines = [f"- {v['desc']}：{v['score']}/{v['max']} 分"
+                                    for v in sc["details"].values() if isinstance(v, dict) and "desc" in v]
+                    with st.spinner("AI 生成評分理由..."):
+                        st.session_state[reason_key] = ask_claude(
+                            "你是一位台股分析師，用繁體中文說明，語氣簡潔，200字以內。",
+                            f"以下是 {stock_id.strip()} 的量化評分明細（總分 {total}/100），請用白話解釋這個分數代表什麼意思，並給出操作建議：\n\n"
+                            + "\n".join(detail_lines),
+                            max_tokens=512,
+                        )
+                if reason_key in st.session_state:
+                    st.info(st.session_state[reason_key])
+
+            # ── K 線圖 ──────────────────────────────────────────
             fig = build_stock_chart(
                 df, stock_id.strip(),
                 show_ma=show_ma, show_volume=show_vol,
                 show_rsi=show_rsi, show_macd=show_macd, show_bb=show_bb,
             )
             st.plotly_chart(fig, use_container_width=True)
+
+            # ── AI 技術指標解讀 ──────────────────────────────────────────
+            if st.button("🤖 AI 解讀技術指標", key=f"btn_ti_{stock_id.strip()}"):
+                df_ind = add_moving_averages(df)
+                df_ind = add_macd(df_ind)
+                df_ind = add_bollinger_bands(df_ind)
+                row = df_ind.iloc[-1]
+                close_p = float(row["Close"])
+                rsi_val = float(row["RSI"]) if "RSI" in row.index and pd.notna(row.get("RSI")) else None
+                macd_val = float(row["MACD"]) if "MACD" in row.index and pd.notna(row.get("MACD")) else None
+                macd_sig = float(row["MACD_Signal"]) if "MACD_Signal" in row.index and pd.notna(row.get("MACD_Signal")) else None
+                ma5_v = float(row["MA5"]) if "MA5" in row.index and pd.notna(row.get("MA5")) else None
+                ma20_v = float(row["MA20"]) if "MA20" in row.index and pd.notna(row.get("MA20")) else None
+                bb_upper = float(row["BB_Upper"]) if "BB_Upper" in row.index and pd.notna(row.get("BB_Upper")) else None
+                bb_lower = float(row["BB_Lower"]) if "BB_Lower" in row.index and pd.notna(row.get("BB_Lower")) else None
+
+                ind_snapshot = f"股票：{stock_id.strip()}，收盤：{close_p:.2f}\n"
+                if rsi_val:
+                    ind_snapshot += f"RSI(14)：{rsi_val:.1f}\n"
+                if macd_val and macd_sig:
+                    signal = "多頭" if macd_val > macd_sig else "空頭"
+                    ind_snapshot += f"MACD：{macd_val:.3f}，訊號線：{macd_sig:.3f}（{signal}訊號）\n"
+                if ma5_v and ma20_v:
+                    ma_pos = "均線多頭" if close_p > ma5_v > ma20_v else "均線空頭" if close_p < ma5_v < ma20_v else "均線糾結"
+                    ind_snapshot += f"5MA：{ma5_v:.2f}，20MA：{ma20_v:.2f}（{ma_pos}）\n"
+                if bb_upper and bb_lower:
+                    bb_mid = (bb_upper + bb_lower) / 2
+                    bb_pos = "接近上軌" if close_p > bb_upper * 0.98 else "接近下軌" if close_p < bb_lower * 1.02 else "中段"
+                    ind_snapshot += f"布林通道：上軌 {bb_upper:.2f}／下軌 {bb_lower:.2f}（股價在{bb_pos}）\n"
+
+                with st.spinner("AI 分析中..."):
+                    ti_analysis = ask_claude(
+                        "你是一位技術分析師，用繁體中文回答，語氣簡潔，150字以內。",
+                        f"請根據以下技術指標快照，給出這支股票的短期操作建議：\n\n{ind_snapshot}",
+                        max_tokens=400,
+                    )
+                st.info(ti_analysis)
 
             with st.expander("查看原始數據"):
                 st.dataframe(df.tail(20), use_container_width=True)

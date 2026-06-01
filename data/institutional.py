@@ -93,6 +93,27 @@ def get_market_institutional_today() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def get_margin_trading(stock_id: str, days: int = 10) -> pd.DataFrame:
+    """取得個股融資融券歷史資料"""
+    start = (datetime.now() - timedelta(days=days + 5)).strftime("%Y-%m-%d")
+    try:
+        r = requests.get(FINMIND_BASE, params={
+            "dataset": "TaiwanStockMarginPurchaseShortSale",
+            "data_id": stock_id,
+            "start_date": start,
+            "token": FINMIND_TOKEN,
+        }, timeout=10)
+        data = r.json().get("data", [])
+        if not data:
+            return pd.DataFrame()
+        df = pd.DataFrame(data)
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date", ascending=False).reset_index(drop=True)
+        return df.head(days)
+    except Exception:
+        return pd.DataFrame()
+
+
 def get_institutional_holding(stock_id: str) -> dict:
     """從 FinMind 取得個股外資持股比例（最新一筆）"""
     try:
