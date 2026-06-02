@@ -142,6 +142,14 @@ def get_taiwan_market_summary() -> pd.DataFrame:
     return get_taiwan_stock_price("TAIEX", days=90)
 
 
+def get_stocks_by_industry(industry_category: str) -> list[dict]:
+    """從全市場清單篩選相同 industry_category 的股票（複用 _get_all_stocks 快取）"""
+    return [
+        s for s in _get_all_stocks()
+        if s.get("industry_category", "").strip() == industry_category.strip()
+    ]
+
+
 def get_financial_statements(stock_id: str, n_quarters: int = 8) -> pd.DataFrame:
     """取得個股財務報表（近 n_quarters 季），回傳含 EPS、毛利率等欄位"""
     try:
