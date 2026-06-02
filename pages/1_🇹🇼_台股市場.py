@@ -4,7 +4,7 @@ import pandas as pd
 from dotenv import load_dotenv
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote, search_taiwan_stocks, get_stocks_by_industry
+from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote, search_taiwan_stocks
 from data.institutional import get_institutional_history, get_market_institutional_today, get_institutional_holding
 from data.tw_sectors import TW_SECTORS
 from data.db import wl_load, wl_add, wl_remove
@@ -197,62 +197,23 @@ with tab_stock:
                         st.error(str(e))
                 st.rerun()
 
-            # ── 產業標籤（可點擊） ───────────────────────────────────
+            # ── 產業標籤 ──────────────────────────────────────────
             industry = info.get("industry_category", "")
             market_type = info.get("type", "")
             if industry:
-                tag_col1, tag_col2, tag_col3 = st.columns([2, 1, 5])
-                current_filter = st.session_state.get("tw_filter_industry")
-                btn_label = f"🏭 {industry} ▲" if current_filter == industry else f"🏭 {industry}"
-                if tag_col1.button(btn_label, key=f"ind_btn_{stock_id.strip()}",
-                                   help="點擊查看同產業所有公司"):
-                    if current_filter == industry:
-                        st.session_state["tw_filter_industry"] = None
-                    else:
-                        st.session_state["tw_filter_industry"] = industry
-                    st.rerun()
+                badge_html = (
+                    f'<span style="background:#2a3f5f;color:#a8d8ea;'
+                    f'padding:4px 12px;border-radius:14px;font-size:0.82em;margin-right:8px">'
+                    f'🏭 {industry}</span>'
+                )
                 if market_type:
-                    tag_col2.markdown(
+                    badge_html += (
                         f'<span style="background:#1e3a2f;color:#7ec8a0;'
                         f'padding:4px 12px;border-radius:14px;font-size:0.82em">'
-                        f'{market_type}</span>',
-                        unsafe_allow_html=True,
+                        f'{market_type}</span>'
                     )
-
-            # ── 同產業清單 ───────────────────────────────────────
-            filter_industry = st.session_state.get("tw_filter_industry")
-            if filter_industry:
-                with st.expander(f"🏭 {filter_industry} 同產業股票", expanded=True):
-                    with st.spinner(f"載入 {filter_industry} 股票..."):
-                        ind_stocks = get_stocks_by_industry(filter_industry)
-                    if not ind_stocks:
-                        st.warning("找不到同產業股票")
-                    else:
-                        ind_ids = tuple(s["stock_id"] for s in ind_stocks)
-                        ind_name_map = {s["stock_id"]: s.get("stock_name", s["stock_id"])
-                                        for s in ind_stocks}
-
-                        @st.cache_data(ttl=60, show_spinner=False)
-                        def _cached_ind(ids):
-                            return cached_sector(ids)
-
-                        rows = _cached_ind(ind_ids)
-                        for row in rows:
-                            row["名稱"] = ind_name_map.get(row["_id"], row["代號"])
-
-                        df_ind = pd.DataFrame(rows)[["代號", "名稱", "現價", "漲跌", "漲跌幅", "成交量(張)", "即時"]]
-                        st.caption(f"共 {len(df_ind)} 支")
-
-                        def _color_ind(val):
-                            if isinstance(val, str):
-                                if val.startswith("+"): return "color: #ff4b4b"
-                                if val.startswith("-"): return "color: #00cc44"
-                            return ""
-
-                        st.dataframe(
-                            df_ind.style.map(_color_ind, subset=["漲跌", "漲跌幅"]),
-                            use_container_width=True, hide_index=True,
-                        )
+                st.markdown(badge_html, unsafe_allow_html=True)
+                st.write("")
 
             # ── 評分卡 ──────────────────────────────────────────
             score_key = f"score_{stock_id.strip()}"
