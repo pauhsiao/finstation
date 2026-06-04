@@ -35,27 +35,30 @@ def cached_stock(stock_id: str, days: int):
 
 def _fetch_one_sector_stock(sid: str) -> dict:
     rt = get_realtime_quote(sid)
-    if rt:
+    # 只有盤中即時資料才用 rt 的漲跌；盤後 rt.change 固定為 0，需改用歷史收盤計算
+    if rt and rt.get("is_realtime"):
         return {
             "_id": sid, "代號": sid,
             "現價": f"{rt['price']:.2f}",
             "漲跌": f"{rt['change']:+.2f}",
             "漲跌幅": f"{rt['change_pct']:+.2f}%",
             "成交量(張)": rt["volume"],
-            "即時": "✅" if rt["is_realtime"] else "—",
+            "即時": "✅",
         }
     df = get_taiwan_stock_price(sid, days=5)
     if not df.empty:
         latest = df.iloc[-1]
         prev = df.iloc[-2] if len(df) > 1 else latest
         change = latest["Close"] - prev["Close"]
-        change_pct = change / prev["Close"] * 100
+        change_pct = change / prev["Close"] * 100 if prev["Close"] else 0
+        price = rt["price"] if rt else float(latest["Close"])
+        vol = rt["volume"] if rt else (int(latest.get("Volume", 0)) if "Volume" in latest.index else 0)
         return {
             "_id": sid, "代號": sid,
-            "現價": f"{latest['Close']:.2f}",
+            "現價": f"{price:.2f}",
             "漲跌": f"{change:+.2f}",
             "漲跌幅": f"{change_pct:+.2f}%",
-            "成交量(張)": int(latest.get("Volume", 0)) if "Volume" in latest.index else 0,
+            "成交量(張)": vol,
             "即時": "—",
         }
     return {"_id": sid, "代號": sid, "現價": "—", "漲跌": "—", "漲跌幅": "—", "成交量(張)": 0, "即時": "—"}
