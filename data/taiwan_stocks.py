@@ -135,18 +135,52 @@ _stock_list_cache: list[dict] = []
 _stock_list_ts: float = 0
 
 
+def _fetch_twse_tpex_stocks() -> list[dict]:
+    """從 TWSE/TPEX ISIN 頁面解析股票清單（只取 4~5 位數字代號的一般股票）"""
+    import re as _re
+    results = []
+    for mode, stock_type in (("2", "tse"), ("4", "tpex")):
+        try:
+            r = requests.get(
+                "https://isin.twse.com.tw/isin/C_public.jsp",
+                params={"strMode": mode},
+                timeout=15,
+            )
+            content = r.content
+            matches = _re.findall(rb"<td[^>]*>(\d{4,5}[\xa1\x40][^<]+)</td>", content)
+            for m in matches:
+                try:
+                    decoded = m.decode("big5", errors="strict")
+                    parts = decoded.split("　")  # full-width space
+                    if len(parts) >= 2:
+                        sid = parts[0].strip()
+                        name = parts[1].strip()
+                        if sid.isdigit() and 4 <= len(sid) <= 5:
+                            results.append({"stock_id": sid, "stock_name": name, "type": stock_type, "industry_category": ""})
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    return results
+
+
 def _get_all_stocks() -> list[dict]:
     """取得全部台股清單，快取 1 小時"""
     import time
     global _stock_list_cache, _stock_list_ts
     if _stock_list_cache and time.time() - _stock_list_ts < 3600:
         return _stock_list_cache
+    stocks = []
     try:
         r = requests.get(FINMIND_BASE, params={"dataset": "TaiwanStockInfo", "token": FINMIND_TOKEN}, timeout=15)
-        _stock_list_cache = r.json().get("data", [])
-        _stock_list_ts = time.time()
+        stocks = r.json().get("data", [])
     except Exception:
         pass
+    if not stocks:
+        stocks = _fetch_twse_tpex_stocks()
+    if stocks:
+        _stock_list_cache = stocks
+        _stock_list_ts = time.time()
     return _stock_list_cache
 
 
