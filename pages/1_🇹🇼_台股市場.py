@@ -101,9 +101,13 @@ tab_stock, tab_sector, tab_inst = st.tabs(["📈 個股行情", "🏭 族群", "
 
 # ── Tab 1: 個股 ──────────────────────────────────────────
 with tab_stock:
-    col1, col2 = st.columns([2, 1])
+    col1, col_btn, col2 = st.columns([2, 0.4, 1])
     with col1:
         keyword = st.text_input("輸入股票代號或中文名稱（例如：2330、台積電）", value="2330")
+    with col_btn:
+        st.markdown("<div style='margin-top:28px'>", unsafe_allow_html=True)
+        st.button("查詢", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     with col2:
         period = st.selectbox("時間區間", ["30天", "90天", "180天", "365天"], index=2)
 
