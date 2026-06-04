@@ -65,6 +65,32 @@ def get_realtime_quote(stock_id: str):
     return None
 
 
+def _yfinance_tw(stock_id: str, days: int) -> pd.DataFrame:
+    try:
+        import yfinance as yf
+        start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        for suffix in (".TW", ".TWO"):
+            try:
+                raw = yf.download(stock_id + suffix, start=start, auto_adjust=True, progress=False)
+                if raw.empty:
+                    continue
+                df = raw.reset_index()
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = [c[0] for c in df.columns]
+                df = df.rename(columns={"Date": "date", "Datetime": "date"})
+                df["date"] = pd.to_datetime(df["date"])
+                df["stock_id"] = stock_id
+                for col in ("Open", "High", "Low", "Close", "Volume"):
+                    if col not in df.columns:
+                        df[col] = float("nan")
+                return df.sort_values("date").reset_index(drop=True)
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+
 def get_taiwan_stock_price(stock_id: str, days: int = 180) -> pd.DataFrame:
     start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
     params = {
@@ -77,18 +103,18 @@ def get_taiwan_stock_price(stock_id: str, days: int = 180) -> pd.DataFrame:
         r = requests.get(FINMIND_BASE, params=params, timeout=10)
         r.raise_for_status()
         data = r.json().get("data", [])
-        if not data:
-            return pd.DataFrame()
-        df = pd.DataFrame(data)
-        df["date"] = pd.to_datetime(df["date"])
-        df = df.rename(columns={
-            "open": "Open", "max": "High", "min": "Low",
-            "close": "Close", "Trading_Volume": "Volume"
-        })
-        return df.sort_values("date").reset_index(drop=True)
+        if data:
+            df = pd.DataFrame(data)
+            df["date"] = pd.to_datetime(df["date"])
+            df = df.rename(columns={
+                "open": "Open", "max": "High", "min": "Low",
+                "close": "Close", "Trading_Volume": "Volume"
+            })
+            return df.sort_values("date").reset_index(drop=True)
     except Exception as e:
         print(f"[FinMind] {stock_id} 取得失敗: {e}")
-        return pd.DataFrame()
+    print(f"[yfinance] fallback for {stock_id}")
+    return _yfinance_tw(stock_id, days)
 
 
 def get_taiwan_stock_info(stock_id: str) -> dict:
