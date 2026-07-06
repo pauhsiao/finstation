@@ -6,7 +6,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from data.taiwan_stocks import get_taiwan_stock_price, get_taiwan_stock_info, get_taiwan_market_summary, get_realtime_quote, search_taiwan_stocks
 from data.institutional import get_institutional_history, get_market_institutional_today, get_institutional_holding
-from data.tw_sectors import TW_SECTORS
+from data.tw_sectors import TW_SECTORS, get_sub_industry
 from data.db import wl_load, wl_add, wl_remove
 from data.scoring import score_stock
 from data.indicators import add_moving_averages, add_macd, add_bollinger_bands
@@ -130,14 +130,15 @@ with tab_stock:
                 sid = s["stock_id"]
                 sname = s.get("stock_name", sid)
                 industry = s.get("industry_category", "")
+                display_industry = get_sub_industry(sid) or industry
                 c1, c2, c3, c4 = st.columns([1, 2, 3, 1])
                 c1.markdown(f"**{sid}**")
                 c2.write(sname)
-                if industry:
+                if display_industry:
                     c3.markdown(
                         f'<span style="background:#2a3f5f;color:#a8d8ea;'
                         f'padding:3px 10px;border-radius:12px;font-size:0.78em">'
-                        f'{industry}</span>',
+                        f'{display_industry}</span>',
                         unsafe_allow_html=True,
                     )
                 if c4.button("選", key=f"pick_{sid}"):
@@ -206,12 +207,13 @@ with tab_stock:
 
             # ── 產業標籤 ──────────────────────────────────────────
             industry = info.get("industry_category", "")
+            display_industry = get_sub_industry(stock_id.strip()) or industry
             market_type = info.get("type", "")
-            if industry:
+            if display_industry:
                 badge_html = (
                     f'<span style="background:#2a3f5f;color:#a8d8ea;'
                     f'padding:4px 12px;border-radius:14px;font-size:0.82em;margin-right:8px">'
-                    f'🏭 {industry}</span>'
+                    f'🏭 {display_industry}</span>'
                 )
                 if market_type:
                     badge_html += (

@@ -117,3 +117,13 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "1590", "name": "亞德客-KY"},
     ],
 }
+
+_STOCK_TO_SECTORS: dict[str, list[str]] = {}
+for _name, _stocks in TW_SECTORS.items():
+    for _s in _stocks:
+        _STOCK_TO_SECTORS.setdefault(_s["id"], []).append(_name)
+
+
+def get_sub_industry(stock_id: str) -> str:
+    """回傳股票代號對應的細分產業（TW_SECTORS 群組名），多組用 / 連接；查無回傳空字串"""
+    return " / ".join(_STOCK_TO_SECTORS.get(stock_id, []))
