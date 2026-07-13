@@ -59,7 +59,7 @@ with col_tw:
             latest = taiex.iloc[-1]
             prev = taiex.iloc[-2] if len(taiex) > 1 else latest
             change = latest["Close"] - prev["Close"]
-            change_pct = change / prev["Close"] * 100
+            change_pct = change / prev["Close"] * 100 if prev["Close"] else 0
             st.metric("加權指數 TAIEX", f"{latest['Close']:,.2f}",
                       f"{'▲' if change >= 0 else '▼'} {change_pct:+.2f}%")
     except Exception:
@@ -91,6 +91,7 @@ pages = [
     ("pages/6_💼_我的持倉.py",   "💼 我的持倉",   "損益計算 + 圖表"),
     ("pages/7_🤖_AI助理.py",    "🤖 AI 投資助理", "個股分析 + 市場問答"),
     ("pages/8_📈_回測分析.py",   "📈 量化回測",   "策略回測 + 風險分析"),
+    ("pages/9_🏆_股票篩選.py",   "🏆 股票篩選",   "多條件選股"),
 ]
 
 for i in range(0, len(pages), 2):

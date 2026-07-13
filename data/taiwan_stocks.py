@@ -1,7 +1,10 @@
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import os
+
+TW_TZ = ZoneInfo("Asia/Taipei")
 
 FINMIND_TOKEN = os.getenv("FINMIND_TOKEN", "")
 FINMIND_BASE = "https://api.finmindtrade.com/api/v4/data"
@@ -68,7 +71,7 @@ def get_realtime_quote(stock_id: str):
 def _yfinance_tw(stock_id: str, days: int) -> pd.DataFrame:
     try:
         import yfinance as yf
-        start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        start = (datetime.now(TW_TZ) - timedelta(days=days)).strftime("%Y-%m-%d")
         for suffix in (".TW", ".TWO"):
             try:
                 raw = yf.download(stock_id + suffix, start=start, auto_adjust=True, progress=False)
@@ -92,7 +95,7 @@ def _yfinance_tw(stock_id: str, days: int) -> pd.DataFrame:
 
 
 def get_taiwan_stock_price(stock_id: str, days: int = 180) -> pd.DataFrame:
-    start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    start = (datetime.now(TW_TZ) - timedelta(days=days)).strftime("%Y-%m-%d")
     params = {
         "dataset": "TaiwanStockPrice",
         "data_id": stock_id,
@@ -233,7 +236,7 @@ def get_financial_statements(stock_id: str, n_quarters: int = 8) -> pd.DataFrame
 def get_monthly_revenue(stock_id: str, months: int = 14) -> pd.DataFrame:
     """取得個股月營收（近 months 個月），含年增率 YoY"""
     try:
-        start = (datetime.now() - timedelta(days=months * 35)).strftime("%Y-%m-%d")
+        start = (datetime.now(TW_TZ) - timedelta(days=months * 35)).strftime("%Y-%m-%d")
         r = requests.get(FINMIND_BASE, params={
             "dataset": "TaiwanStockMonthRevenue",
             "data_id": stock_id,

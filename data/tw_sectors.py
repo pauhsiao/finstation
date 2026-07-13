@@ -30,7 +30,6 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "3034", "name": "聯詠"},
         {"id": "6415", "name": "矽力-KY"},
         {"id": "3533", "name": "嘉澤"},
-        {"id": "2356", "name": "英業達"},
     ],
     "AI 伺服器": [
         {"id": "2382", "name": "廣達", "leader": True},
@@ -46,6 +45,7 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "2324", "name": "仁寶"},
         {"id": "4938", "name": "和碩"},
         {"id": "2354", "name": "鴻準"},
+        {"id": "2356", "name": "英業達"},
     ],
     "網通": [
         {"id": "2345", "name": "智邦", "leader": True},
@@ -94,7 +94,6 @@ TW_SECTORS: dict[str, list[dict]] = {
         {"id": "2603", "name": "長榮", "leader": True},
         {"id": "2609", "name": "陽明"},
         {"id": "2615", "name": "萬海"},
-        {"id": "2634", "name": "漢翔"},
     ],
     "鋼鐵": [
         {"id": "2002", "name": "中鋼", "leader": True},

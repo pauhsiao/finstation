@@ -33,6 +33,25 @@ def cached_stock(stock_id: str, days: int):
     return get_taiwan_stock_price(stock_id, days=days), get_taiwan_stock_info(stock_id)
 
 
+@st.cache_data(ttl=30)
+def cached_rt(stock_id: str):
+    return get_realtime_quote(stock_id)
+
+
+def color_change(val):
+    if isinstance(val, str):
+        if val.startswith("+"):
+            return "color: #ff4b4b"
+        if val.startswith("-"):
+            return "color: #00cc44"
+    elif isinstance(val, (int, float)):
+        if val > 0:
+            return "color: #ff4b4b"
+        if val < 0:
+            return "color: #00cc44"
+    return ""
+
+
 def _fetch_one_sector_stock(sid: str) -> dict:
     rt = get_realtime_quote(sid)
     # 只有盤中即時資料才用 rt 的漲跌；盤後 rt.change 固定為 0，需改用歷史收盤計算
@@ -101,13 +120,9 @@ tab_stock, tab_sector, tab_inst = st.tabs(["📈 個股行情", "🏭 族群", "
 
 # ── Tab 1: 個股 ──────────────────────────────────────────
 with tab_stock:
-    col1, col_btn, col2 = st.columns([2, 0.4, 1])
+    col1, col2 = st.columns([2, 1])
     with col1:
         keyword = st.text_input("輸入股票代號或中文名稱（例如：2330、台積電）", value="2330")
-    with col_btn:
-        st.markdown("<div style='margin-top:28px'>", unsafe_allow_html=True)
-        st.button("查詢", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
     with col2:
         period = st.selectbox("時間區間", ["30天", "90天", "180天", "365天"], index=2)
 
@@ -164,7 +179,7 @@ with tab_stock:
             df, info = cached_stock(stock_id.strip(), days)
 
         if not df.empty:
-            rt = get_realtime_quote(stock_id.strip())
+            rt = cached_rt(stock_id.strip())
             if rt:
                 price = rt["price"]
                 change = rt["change"]
@@ -177,7 +192,7 @@ with tab_stock:
                 prev = df.iloc[-2] if len(df) > 1 else latest
                 price = latest["Close"]
                 change = price - prev["Close"]
-                change_pct = change / prev["Close"] * 100
+                change_pct = change / prev["Close"] * 100 if prev["Close"] else 0
                 high = latest.get("High", 0)
                 low = latest.get("Low", 0)
                 price_label = "收盤價"
@@ -328,19 +343,6 @@ with tab_sector:
 
     df_sector = pd.DataFrame(rows)[["代號", "名稱", "現價", "漲跌", "漲跌幅", "成交量(張)", "即時"]]
 
-    def color_change(val):
-        if isinstance(val, str):
-            if val.startswith("+"):
-                return "color: #ff4b4b"
-            if val.startswith("-"):
-                return "color: #00cc44"
-        elif isinstance(val, (int, float)):
-            if val > 0:
-                return "color: #ff4b4b"
-            if val < 0:
-                return "color: #00cc44"
-        return ""
-
     styled = df_sector.style.map(color_change, subset=["漲跌", "漲跌幅"])
 
     st.dataframe(styled, use_container_width=True, hide_index=True)
@@ -391,7 +393,6 @@ with tab_inst:
                               help=f"資料日期：{holding.get('date', '')}")
 
                 # 近期買賣超柱狀圖
-                import plotly.graph_objects as go
                 fig_inst = go.Figure()
                 df_plot = df_inst.head(30).sort_values("date")
                 colors_total = ["#ff4b4b" if v >= 0 else "#00cc44" for v in df_plot["合計"]]
@@ -450,13 +451,8 @@ with tab_inst:
             else:
                 df_view = df_mkt.nlargest(20, "外資買賣超")
 
-            def color_num(val):
-                if isinstance(val, (int, float)):
-                    return "color: #ff4b4b" if val > 0 else ("color: #00cc44" if val < 0 else "")
-                return ""
-
             styled_mkt = df_view.style.map(
-                color_num, subset=["外資買賣超", "投信買賣超", "自營商買賣超", "三大法人合計"]
+                color_change, subset=["外資買賣超", "投信買賣超", "自營商買賣超", "三大法人合計"]
             )
             st.dataframe(styled_mkt, use_container_width=True, hide_index=True)
         else:
