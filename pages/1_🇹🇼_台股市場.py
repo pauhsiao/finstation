@@ -129,42 +129,22 @@ with tab_stock:
     period_map = {"30天": 30, "90天": 90, "180天": 180, "365天": 365}
     days = period_map[period]
 
-    # 解析輸入：純數字直接當代號，中文/英文名稱則搜尋
+    # 解析輸入：純數字直接當代號，中文/英文名稱自動取最符合的結果
     stock_id = keyword.strip()
-
-    # 重新輸入時清除上次選取
-    if stock_id != st.session_state.get("tw_last_keyword", ""):
-        st.session_state["tw_chosen_id"] = ""
-        st.session_state["tw_last_keyword"] = stock_id
 
     if stock_id and not stock_id.isdigit():
         matches = search_taiwan_stocks(stock_id)
         if matches:
-            st.markdown("**搜尋結果，請點選：**")
-            for s in matches[:10]:
-                sid = s["stock_id"]
-                sname = s.get("stock_name", sid)
-                industry = s.get("industry_category", "")
-                display_industry = get_sub_industry(sid) or industry
-                c1, c2, c3, c4 = st.columns([1, 2, 3, 1])
-                c1.markdown(f"**{sid}**")
-                c2.write(sname)
-                if display_industry:
-                    c3.markdown(
-                        f'<span style="background:#2a3f5f;color:#a8d8ea;'
-                        f'padding:3px 10px;border-radius:12px;font-size:0.78em">'
-                        f'{display_industry}</span>',
-                        unsafe_allow_html=True,
-                    )
-                if c4.button("選", key=f"pick_{sid}"):
-                    st.session_state["tw_chosen_id"] = sid
-                    st.rerun()
-            stock_id = st.session_state.get("tw_chosen_id", "")
+            best = next((s for s in matches if s.get("stock_name") == stock_id),
+                        next((s for s in matches if s.get("stock_name", "").startswith(stock_id)),
+                             matches[0]))
+            others = [s for s in matches if s is not best][:5]
+            if others:
+                st.caption("其他符合：" + "、".join(f"{s['stock_id']} {s.get('stock_name', '')}" for s in others))
+            stock_id = best["stock_id"]
         else:
             st.warning(f"找不到「{stock_id}」，請確認名稱或代號")
             stock_id = ""
-    elif stock_id.isdigit():
-        st.session_state["tw_chosen_id"] = stock_id
 
     with st.expander("📐 技術指標設定", expanded=False):
         ic1, ic2, ic3, ic4, ic5 = st.columns(5)
