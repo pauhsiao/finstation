@@ -146,13 +146,25 @@ with tab_stock:
             st.warning(f"找不到「{stock_id}」，請確認名稱或代號")
             stock_id = ""
 
-    with st.expander("📐 技術指標設定", expanded=False):
+    _qp = st.query_params
+    _ind_defaults = {"ma": True, "vol": True, "rsi": False, "macd": False, "bb": True}
+
+    def _ind(key):
+        v = _qp.get(key)
+        return v == "1" if v in ("0", "1") else _ind_defaults[key]
+
+    with st.expander("📐 技術指標設定", expanded=True):
         ic1, ic2, ic3, ic4, ic5 = st.columns(5)
-        show_ma = ic1.checkbox("均線 MA", value=True)
-        show_vol = ic2.checkbox("成交量", value=True)
-        show_rsi = ic3.checkbox("RSI(14)", value=False)
-        show_macd = ic4.checkbox("MACD", value=False)
-        show_bb = ic5.checkbox("布林通道", value=False)
+        show_ma = ic1.checkbox("均線 MA", value=_ind("ma"))
+        show_vol = ic2.checkbox("成交量", value=_ind("vol"))
+        show_rsi = ic3.checkbox("RSI(14)", value=_ind("rsi"))
+        show_macd = ic4.checkbox("MACD", value=_ind("macd"))
+        show_bb = ic5.checkbox("布林通道", value=_ind("bb"))
+
+    _new_qp = {k: "1" if v else "0" for k, v in
+               [("ma", show_ma), ("vol", show_vol), ("rsi", show_rsi), ("macd", show_macd), ("bb", show_bb)]}
+    if any(_qp.get(k) != v for k, v in _new_qp.items()):
+        _qp.update(_new_qp)
 
     if stock_id:
         with st.spinner(f"載入 {stock_id} 數據..."):
